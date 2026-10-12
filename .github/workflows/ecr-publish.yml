@@ -43,6 +43,14 @@ jobs:
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Set up QEMU for ARM64 builds
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build and push eight images
         shell: bash
         run: |
@@ -82,19 +90,18 @@ jobs:
               exit 1
             fi
 
-            echo "Building $image using port $port"
+            echo "Building $image for linux/arm64"
 
-            docker build \
+            docker buildx build \
               --platform linux/arm64 \
               --build-arg "ARTIFACT_NAME=$module-4.0.1" \
               --build-arg "EXPOSED_PORT=$port" \
               -f docker/Dockerfile \
               -t "$image:${GITHUB_SHA}" \
+              --push \
               "$module/target"
 
-            docker push "$image:${GITHUB_SHA}"
-
-            docker tag "$image:${GITHUB_SHA}" "$image:latest"
-            docker push "$image:latest"
+            docker buildx imagetools create \
+              --tag "$image:latest" \
+              "$image:${GITHUB_SHA}"
           done
-
